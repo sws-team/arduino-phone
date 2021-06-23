@@ -2,13 +2,13 @@ const unsigned int pinBELL	= 2;	// Bell
 
 void setup()
 {
-	pinMode(pinBell, OUTPUT);
+	pinMode(pinBELL, OUTPUT);
 }
 
 void loop()
 {
-	digitalWrite(pinBell, HIGH);
+	digitalWrite(pinBELL, HIGH);
 	delay(20);
-	digitalWrite(pinBell, LOW);
+	digitalWrite(pinBELL, LOW);
 	delay(20);
 }
