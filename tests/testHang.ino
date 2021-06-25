@@ -7,7 +7,7 @@ bool isHangUp()
 
 void setup()
 {
-	pinMode(pinHANG,INPUT_PULLUP);
+	pinMode(pinHANG, INPUT_PULLUP);
 	Serial.begin(9600);
 	delay(1000);
 }
