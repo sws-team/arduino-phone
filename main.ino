@@ -30,9 +30,9 @@ const unsigned int pinBEEP	= 3;	// Beep
 const unsigned int pinHANG	= 4;	// Hang
 const unsigned int pinDIAL	= 5;	// Dial
 const unsigned int pinPULSE	= 6;	// Pulse
-const unsigned int pinRX	= 7;	// RX of GSM/GPRS Shield
-const unsigned int pinTX	= 8;	// TX of GSM/GPRS Shield
-const unsigned int pinSIM900 = 9;	// Pin to power on GSM/GPRS Shield
+const unsigned int pinRX	= 7;	// RX of SIM800L
+const unsigned int pinTX	= 8;	// TX of SIM800L
+const unsigned int pinRST	= 9;	// Pin to reset SIM800L
 const int DEFAULT_DELAY = 1000;	// Wait time
 const int BELL_FREQ = 20;	// Bell frequency
 const int PHONE_NUMBER_LENGTH = 11;	// Phone number length +7(XXX)XXX-XX-XX
@@ -57,14 +57,14 @@ const String CMD_END_CALL = "ATH";
 void process();
 void answer();
 void bell(bool active);
-void powerOnSIM();// Power on SIM900 module of GSM/GPRS Shield
+void resetSIM800();// Power on SIM900 module of GSM/GPRS Shield
 void readPort();
 void command(const String& str);
 void changeState(const STATES newState);
 void call(const String &number);
 void ring();
 String getCaller();
-void setEarphoneMode();
+void initSettings();
 void checkNumber();
 bool isHangUp(); // Check is hang up
 void debugOutput(const String& text);
@@ -86,12 +86,12 @@ void setup()
 	pinMode(pinBELL, OUTPUT);
 	digitalWrite(pinBELL,LOW);
 
-	pinMode(pinBEEP,  OUTPUT);
-	digitalWrite(pinBEEP,  LOW );
+	pinMode(pinBEEP, OUTPUT);
+	digitalWrite(pinBEEP, LOW);
 
 	bell(false);
 
-	powerOnSIM();
+	resetSIM800();
 	delay(DEFAULT_DELAY);
 	debugOutput("Setup finished");
 }
@@ -99,52 +99,23 @@ void setup()
 //======================LOOP===========================
 void loop()
 {
-		process();
-
-	if (state == READY)
-		checkNumber();
-
+	process();
 	readPort();
 	delay(100);
 }
 //======================================================
 
-/*
 void process()
 {
-	if (buffer.length() == 0)
-		return;
-	if (state == INIT)
-	{
-//		if (buffer.indexOf("Call Ready") > 0)
-		{
-			debugOutput("SIM module ready");
-			changeState(WAIT_READY);
-			command(CMD_AT);
-			return;
-		}
-//		if (buffer.indexOf("NORMAL POWER DOWN") > 0)
-//		{
-//			reconnect();
-//			return;
-//		}
-	}
-}
-*/
-
-void process()
-{
-	//debugOutput(buffer.c_str());
 	switch (state)
 	{
 	case INIT:
-//	    if (buffer.indexOf("Call Ready") > 0)
-//	    {
+	{
 		debugOutput("SIM module ready");
 		changeState(WAIT_READY);
 		command(CMD_AT);
-//	    }
-	break;
+	}
+		break;
 	case WAIT_READY:
 	{
 		if (buffer.indexOf("OK") > 0)
@@ -197,7 +168,7 @@ void process()
 		if(index == -1)
 			break;
 		const int CREG_LENGTH = CMD_NETWORK.length() - 1;
-		const int isRegistered = atoi(buffer.substring(index + CREG_LENGTH, index + CREG_LENGTH + 1).c_str());
+		//const int isRegistered = atoi(buffer.substring(index + CREG_LENGTH, index + CREG_LENGTH + 1).c_str());
 		const int networkStatus = atoi(buffer.substring(index + CREG_LENGTH + 2, index + CREG_LENGTH + 3).c_str());
 		if (/*isRegistered == 1 && */networkStatus == 1)
 		{
@@ -223,11 +194,10 @@ void process()
 		const int endIndex = buffer.indexOf(endline, index) - 1;
 
 		const String operatorName = buffer.substring(index + COPS_LENGTH, endIndex);
-
 		debugOutput(String("Operator: ") + operatorName);
 		if (operatorName != "0")
 		{
-			setEarphoneMode();
+			initSettings();
 			changeState(READY);
 		}
 		else
@@ -242,14 +212,17 @@ void process()
 		if (buffer.indexOf("RING") != -1)
 		{
 //			+CLIP: "+79215635243",145,"",0,"Megafon",0
-
+			tone(pinBEEP, 1000, 1000);
 			debugOutput("Ring");
 			digitalWrite(pinBEEP, LOW);
 //			const String caller = getCaller();
 //			debugOutput(String("Caller: ") + caller);
+			buffer = String();
 
 			changeState(RING);
+			break;
 		}
+		checkNumber();
 	}
 		break;
 	case RING:
@@ -262,6 +235,7 @@ void process()
 		}
 		if (buffer.indexOf("RING") != -1)
 		{
+			tone(pinBEEP, 500, 500);
 			buffer = String();
 		}
 		if (isHangUp())
@@ -296,27 +270,19 @@ void process()
 	}
 }
 
-void powerOnSIM()
+void resetSIM800()
 {
 	changeState(INIT);
-	digitalWrite(pinSIM900, HIGH); //reset sim800
-	digitalWrite(pinSIM900, LOW); //reset sim800
-	debugOutput("Power on SIM900 module");
-
-//	pinMode(pinSIM900, OUTPUT);
-//	digitalWrite(pinSIM900, LOW);
-//	delay(DEFAULT_DELAY);
-//	digitalWrite(pinSIM900, HIGH);
-//	delay(DEFAULT_DELAY*2);
-//	digitalWrite(pinSIM900, LOW);
-//	delay(DEFAULT_DELAY*3);
+	digitalWrite(pinRST, HIGH); //reset sim800
+	digitalWrite(pinRST, LOW); //reset sim800
+	debugOutput("Reset SIM800L module");
 }
 
 void reconnect()
 {
 	debugOutput("SIM module offline");
 	buffer = String();
-	powerOnSIM();
+	resetSIM800();
 	delay(DEFAULT_DELAY);
 	debugOutput("Reconnect finished");
 }
@@ -358,7 +324,7 @@ void changeState(const STATES newState)
 	state = newState;
 	if (state == READY) {
 		buffer = String();
-		tone(2, 1000, 1000);
+		tone(pinBEEP, 1000, 1000);
 	}
 }
 
@@ -367,6 +333,7 @@ void checkNumber()
 	//check is phone is picked up
 	if(!isHangUp())
 		return;
+	tone(pinBEEP, 250, 250);
 
 	unsigned int digitsCount = 0;
 	char strNumber[12];
@@ -499,15 +466,13 @@ String getCaller()
 	return String("Unknown");
 }
 
-void setEarphoneMode()
+void initSettings()
 {
 	// AT+CIURC=0 //https://stackoverflow.com/questions/61327888/sim800l-disable-sms-ready-and-call-ready-unsolicited-messages
 	command("AT+CLIP=1"); //AOH
+	command("AT+SNFS=1");
 	command("AT+CLVL=8");
-//	command("AT+SNFS=1");
-//	delay(100);
-//	command("AT+CRSL=15");
-//	delay(200);
+	command("AT+CRSL=15");
 }
 
 bool isHangUp()
