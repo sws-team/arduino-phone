@@ -1,4 +1,5 @@
-const uint8_t pinHANG = 4;
+const uint8_t pinHANG	= 4;	// Hang
+const uint16_t PORT_SPEED = 9600;	// Baud rate
 
 bool isHangUp()
 {
@@ -8,7 +9,7 @@ bool isHangUp()
 void setup()
 {
 	pinMode(pinHANG, INPUT_PULLUP);
-	Serial.begin(9600);
+	Serial.begin(PORT_SPEED);
 	delay(1000);
 }
 
@@ -19,5 +20,5 @@ void loop()
 		Serial.println("Up");
 	else
 		Serial.println("Down");
-	delay(100);
+	delay(50);
 }
