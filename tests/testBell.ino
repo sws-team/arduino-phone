@@ -1,4 +1,5 @@
 const unsigned int pinBELL	= 2;	// Bell
+const uint16_t BELL_FREQ = 20;	// Bell frequency
 
 void setup()
 {
@@ -8,7 +9,7 @@ void setup()
 void loop()
 {
 	digitalWrite(pinBELL, HIGH);
-	delay(20);
+	delay(BELL_FREQ);
 	digitalWrite(pinBELL, LOW);
-	delay(20);
+	delay(BELL_FREQ);
 }
