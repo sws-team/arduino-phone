@@ -22,23 +22,25 @@ enum STATES
 };
 
 //defines
-#define DEBUG_BUILD
+//#define DEBUG_BUILD
 
 //const
-const unsigned int pinBELL	= 2;	// Bell
-const unsigned int pinBEEP	= 3;	// Beep
-const unsigned int pinHANG	= 4;	// Hang
-const unsigned int pinDIAL	= 5;	// Dial
-const unsigned int pinPULSE	= 6;	// Pulse
-const unsigned int pinRX	= 7;	// RX of SIM800L
-const unsigned int pinTX	= 8;	// TX of SIM800L
-const unsigned int pinRST	= 9;	// Pin to reset SIM800L
-const int DEFAULT_DELAY = 1000;	// Wait time
-const int BELL_FREQ = 20;	// Bell frequency
-const int PHONE_NUMBER_LENGTH = 11;	// Phone number length +7(XXX)XXX-XX-XX
-const int PORT_SPEED = 9600;	// Baud rate
+const uint8_t pinBellForward  = 10;  // Bell left
+const uint8_t pinBellBack  = 11;  // Bell right
+const uint8_t pinBEEP	= 3;	// Beep
+const uint8_t pinHANG	= 4;	// Hang
+const uint8_t pinDIAL	= 5;	// Dial
+const uint8_t pinPULSE	= 6;	// Pulse
+const uint8_t pinRX		= 7;	// RX of SIM800L
+const uint8_t pinTX		= 8;	// TX of SIM800L
+const uint8_t pinRST	= 9;	// Pin to reset SIM800L
+const uint16_t DEFAULT_DELAY = 1000;	// Wait time
+const uint16_t BELL_FREQ = 75;	// Bell frequency
+const uint16_t PHONE_NUMBER_LENGTH = 11;	// Phone number length +7(XXX)XXX-XX-XX
+const uint16_t PORT_SPEED = 9600;	// Baud rate
 const String endline = "\n";	// End of line
-const unsigned short MAX_TRY_COUNT = 3;
+const uint16_t MAX_TRY_COUNT = 3;
+const uint8_t RING_COUNT = 5;
 
 // variables
 STATES state = INIT;
@@ -69,6 +71,9 @@ void checkNumber();
 bool isHangUp(); // Check is hang up
 void debugOutput(const String& text);
 void reconnect();
+void bellLeft();
+void bellRight();
+void bellOff();
 
 //======================SETUP===========================
 void setup()
@@ -83,10 +88,11 @@ void setup()
 	pinMode(pinDIAL, INPUT_PULLUP);
 	pinMode(pinPULSE, INPUT_PULLUP);
 
-	pinMode(pinBELL, OUTPUT);
-	digitalWrite(pinBELL,LOW);
-
+	pinMode(pinBellForward, OUTPUT);
+	pinMode(pinBellBack, OUTPUT);
 	pinMode(pinBEEP, OUTPUT);
+
+	bellOff();
 	digitalWrite(pinBEEP, LOW);
 
 	bell(false);
@@ -101,7 +107,7 @@ void loop()
 {
 	process();
 	readPort();
-	delay(100);
+	delay(40);
 }
 //======================================================
 
@@ -212,7 +218,6 @@ void process()
 		if (buffer.indexOf("RING") != -1)
 		{
 //			+CLIP: "+79215635243",145,"",0,"Megafon",0
-			tone(pinBEEP, 1000, 1000);
 			debugOutput("Ring");
 			digitalWrite(pinBEEP, LOW);
 //			const String caller = getCaller();
@@ -227,19 +232,22 @@ void process()
 		break;
 	case RING:
 	{
+		debugOutput("in ring: " + buffer);
 		if (buffer.indexOf("NO CARRIER") != -1)
 		{
 			debugOutput("Incoming call canceled");
+			bellOff();
 			changeState(READY);
 			break;
 		}
 		if (buffer.indexOf("RING") != -1)
 		{
-			tone(pinBEEP, 500, 500);
+			debugOutput("Ring#");
 			buffer = String();
 		}
 		if (isHangUp())
 		{
+			bellOff();
 			debugOutput("Pick up phone");
 			command("ATA");
 			debugOutput("Talking");
@@ -302,7 +310,9 @@ void readPort()
 	{
 		const char ch = serialPort.read();
 		buffer += String(ch);
+#ifdef DEBUG_BUILD
 		Serial.write(ch);
+#endif
 	}
 }
 
@@ -310,13 +320,15 @@ void bell(bool active)
 {
 	if(active)
 	{
-		digitalWrite(pinBELL, HIGH);
+		bellLeft();
 		delay(BELL_FREQ);
-		digitalWrite(pinBELL, LOW);
+		bellRight();
 		delay(BELL_FREQ);
 	}
 	else
-		digitalWrite(pinBELL, LOW);
+	{
+		bellOff();
+	}
 }
 
 void changeState(const STATES newState)
@@ -324,8 +336,8 @@ void changeState(const STATES newState)
 	state = newState;
 	if (state == READY) {
 		buffer = String();
-		tone(pinBEEP, 1000, 1000);
 	}
+	debugOutput("State changed: " + String(state));
 }
 
 void checkNumber()
@@ -333,7 +345,6 @@ void checkNumber()
 	//check is phone is picked up
 	if(!isHangUp())
 		return;
-	tone(pinBEEP, 250, 250);
 
 	unsigned int digitsCount = 0;
 	char strNumber[12];
@@ -371,7 +382,7 @@ void checkNumber()
 			debugOutput(String("Phone number: ") + strNumber);
 			if (digitsCount == PHONE_NUMBER_LENGTH)
 			{
-				tone(2, 1500, 1000);
+				tone(pinBEEP, 1500, 1000);
 				debugOutput(String("Call to: ") + strNumber);
 				call(strNumber);
 			}
@@ -427,9 +438,7 @@ void call(const String& number)
 
 void ring()
 {
-	const unsigned int timeout = 500;
-	const unsigned int millisEnd = millis() + timeout;
-	while(millis() < millisEnd) {
+	for (uint8_t i = 0; i < RING_COUNT; ++i) {
 		bell(true);
 		bell(false);
 	}
@@ -473,11 +482,30 @@ void initSettings()
 	command("AT+SNFS=1");
 	command("AT+CLVL=8");
 	command("AT+CRSL=15");
+	tone(pinBEEP, 1000, 2000);
 }
 
 bool isHangUp()
 {
 	return digitalRead(pinHANG);
+}
+
+void bellLeft()
+{
+	digitalWrite(pinBellForward, HIGH);
+	digitalWrite(pinBellBack, LOW);
+}
+
+void bellRight()
+{
+	digitalWrite(pinBellForward, LOW);
+	digitalWrite(pinBellBack, HIGH);
+}
+
+void bellOff()
+{
+	digitalWrite(pinBellForward, LOW);
+	digitalWrite(pinBellBack, LOW);
 }
 
 void debugOutput(const String& text)
