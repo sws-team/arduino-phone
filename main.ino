@@ -232,17 +232,13 @@ void process()
 		break;
 	case RING:
 	{
-		debugOutput("in ring: " + buffer);
-		if (buffer.indexOf("NO CARRIER") != -1)
-		{
+		if (buffer.indexOf("NO CARRIER") != -1) {
 			debugOutput("Incoming call canceled");
 			bellOff();
 			changeState(READY);
 			break;
 		}
-		if (buffer.indexOf("RING") != -1)
-		{
-			debugOutput("Ring#");
+		if (buffer.indexOf("RING") != -1) {
 			buffer = String();
 		}
 		if (isHangUp())
@@ -337,7 +333,6 @@ void changeState(const STATES newState)
 	if (state == READY) {
 		buffer = String();
 	}
-	debugOutput("State changed: " + String(state));
 }
 
 void checkNumber()
