@@ -1,5 +1,5 @@
 const uint8_t pinBellForward  = 10;  // Bell left
-const uint8_t pinBellBack  = 11;  // Bell right
+const uint8_t pinBellBack  = 12;  // Bell right
 const uint16_t BELL_FREQ = 75;  // Bell frequency
 
 void bellLeft();

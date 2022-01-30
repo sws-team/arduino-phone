@@ -22,11 +22,11 @@ enum STATES
 };
 
 //defines
-//#define DEBUG_BUILD
+#define DEBUG_BUILD
 
 //const
 const uint8_t pinBellForward  = 10;  // Bell left
-const uint8_t pinBellBack  = 11;  // Bell right
+const uint8_t pinBellBack  = 12;  // Bell right
 const uint8_t pinBEEP	= 3;	// Beep
 const uint8_t pinHANG	= 4;	// Hang
 const uint8_t pinDIAL	= 5;	// Dial
@@ -35,6 +35,7 @@ const uint8_t pinRX		= 7;	// RX of SIM800L
 const uint8_t pinTX		= 8;	// TX of SIM800L
 const uint8_t pinRST	= 9;	// Pin to reset SIM800L
 const uint16_t DEFAULT_DELAY = 1000;	// Wait time
+const uint16_t LOOP_DELAY = 100;	// Loop delay
 const uint16_t BELL_FREQ = 75;	// Bell frequency
 const uint16_t PHONE_NUMBER_LENGTH = 11;	// Phone number length +7(XXX)XXX-XX-XX
 const uint16_t PORT_SPEED = 9600;	// Baud rate
@@ -59,7 +60,7 @@ const String CMD_END_CALL = "ATH";
 void process();
 void answer();
 void bell(bool active);
-void resetSIM800();// Power on SIM900 module of GSM/GPRS Shield
+void resetSIM900Module();// Power on SIM900 module of GSM/GPRS Shield
 void readPort();
 void command(const String& str);
 void changeState(const STATES newState);
@@ -88,6 +89,7 @@ void setup()
 	pinMode(pinDIAL, INPUT_PULLUP);
 	pinMode(pinPULSE, INPUT_PULLUP);
 
+	pinMode(pinRST, OUTPUT);
 	pinMode(pinBellForward, OUTPUT);
 	pinMode(pinBellBack, OUTPUT);
 	pinMode(pinBEEP, OUTPUT);
@@ -97,7 +99,7 @@ void setup()
 
 	bell(false);
 
-	resetSIM800();
+	resetSimModule();
 	delay(DEFAULT_DELAY);
 	debugOutput("Setup finished");
 }
@@ -107,7 +109,7 @@ void loop()
 {
 	process();
 	readPort();
-	delay(40);
+	delay(LOOP_DELAY);
 }
 //======================================================
 
@@ -124,16 +126,13 @@ void process()
 		break;
 	case WAIT_READY:
 	{
-		if (buffer.indexOf("OK") > 0)
-		{
+		if (buffer.indexOf("OK") > 0) {
 			debugOutput("AT OK");
 			command(CMD_CONNECTION);
 			changeState(GET_CONNECTION);
 		}
-		else
-		{
-			if (tryCount >= MAX_TRY_COUNT)
-			{
+		else {
+			if (tryCount >= MAX_TRY_COUNT) {
 				tryCount = 0;
 				reconnect();
 				return;
@@ -153,14 +152,12 @@ void process()
 		const int CSQ_LENGTH = CMD_CONNECTION.length();
 		const int endIndex = buffer.indexOf(endline, index) - 1;
 		const float signalLevel = atof(buffer.substring(index + CSQ_LENGTH, endIndex).c_str());
-		if (signalLevel > 0)
-		{
+		if (signalLevel > 0) {
 			debugOutput("Сonnected to network");
 			command(CMD_NETWORK);
 			changeState(GET_NETWORK);
 		}
-		else
-		{
+		else {
 			debugOutput("Сonnection failed");
 			command(CMD_CONNECTION);//try again
 		}
@@ -176,14 +173,12 @@ void process()
 		const int CREG_LENGTH = CMD_NETWORK.length() - 1;
 		//const int isRegistered = atoi(buffer.substring(index + CREG_LENGTH, index + CREG_LENGTH + 1).c_str());
 		const int networkStatus = atoi(buffer.substring(index + CREG_LENGTH + 2, index + CREG_LENGTH + 3).c_str());
-		if (/*isRegistered == 1 && */networkStatus == 1)
-		{
+		if (/*isRegistered == 1 && */networkStatus == 1) {
 			debugOutput("Registered in network");
 			changeState(GET_OPERATOR);
 			command(CMD_OPERATOR);
 		}
-		else
-		{
+		else {
 			debugOutput("Registration failed");
 			command(CMD_NETWORK);//try again
 		}
@@ -201,13 +196,11 @@ void process()
 
 		const String operatorName = buffer.substring(index + COPS_LENGTH, endIndex);
 		debugOutput(String("Operator: ") + operatorName);
-		if (operatorName != "0")
-		{
+		if (operatorName != "0") {
 			initSettings();
 			changeState(READY);
 		}
-		else
-		{
+		else {
 			debugOutput("Check operator failed");
 			command(CMD_OPERATOR);//try again
 		}
@@ -215,13 +208,13 @@ void process()
 		break;
 	case READY:
 	{
-		if (buffer.indexOf("RING") != -1)
-		{
-//			+CLIP: "+79215635243",145,"",0,"Megafon",0
+		if (buffer.indexOf("RING") != -1) {
 			debugOutput("Ring");
 			digitalWrite(pinBEEP, LOW);
-//			const String caller = getCaller();
-//			debugOutput(String("Caller: ") + caller);
+#if 0
+			const String caller = getCaller();
+			debugOutput(String("Caller: ") + caller);
+#endif
 			buffer = String();
 
 			changeState(RING);
@@ -274,19 +267,25 @@ void process()
 	}
 }
 
-void resetSIM800()
+void resetSIM900Module()
 {
 	changeState(INIT);
-	digitalWrite(pinRST, HIGH); //reset sim800
-	digitalWrite(pinRST, LOW); //reset sim800
-	debugOutput("Reset SIM800L module");
+
+	digitalWrite(pinRST, LOW);
+	delay(DEFAULT_DELAY);
+	digitalWrite(pinRST, HIGH);
+	delay(DEFAULT_DELAY * 2);
+	digitalWrite(pinRST, LOW);
+	delay(DEFAULT_DELAY * 3);
+
+	debugOutput("Reset SIM module");
 }
 
 void reconnect()
 {
 	debugOutput("SIM module offline");
 	buffer = String();
-	resetSIM800();
+	resetSimModule();
 	delay(DEFAULT_DELAY);
 	debugOutput("Reconnect finished");
 }
@@ -314,15 +313,13 @@ void readPort()
 
 void bell(bool active)
 {
-	if(active)
-	{
+	if(active) {
 		bellLeft();
 		delay(BELL_FREQ);
 		bellRight();
 		delay(BELL_FREQ);
 	}
-	else
-	{
+	else {
 		bellOff();
 	}
 }
@@ -346,17 +343,13 @@ void checkNumber()
 	strNumber[0]='\0';
 
 	debugOutput("Phone picked up");
-	while(isHangUp())
-	{
-		if(!digitalRead(pinDIAL))
-		{
+	while(isHangUp()) {
+		if(!digitalRead(pinDIAL)) {
 			delay(20);
 			unsigned int pulseCount = 0;
 			debugOutput("Dialing digit...");
-			while(!digitalRead(pinDIAL) && isHangUp())
-			{
-				if(digitalRead(pinPULSE))
-				{
+			while(!digitalRead(pinDIAL) && isHangUp()) {
+				if(digitalRead(pinPULSE)) {
 					delay(5);
 					while(digitalRead(pinPULSE) && isHangUp())
 						delay(5);
@@ -365,8 +358,7 @@ void checkNumber()
 				}
 			}
 
-			if(pulseCount)
-			{
+			if(pulseCount) {
 				if(pulseCount >= 10)
 					pulseCount = 0;
 
@@ -375,8 +367,7 @@ void checkNumber()
 				strNumber[digitsCount] = '\0';
 			}
 			debugOutput(String("Phone number: ") + strNumber);
-			if (digitsCount == PHONE_NUMBER_LENGTH)
-			{
+			if (digitsCount == PHONE_NUMBER_LENGTH) {
 				tone(pinBEEP, 1500, 1000);
 				debugOutput(String("Call to: ") + strNumber);
 				call(strNumber);
@@ -392,37 +383,31 @@ void call(const String& number)
 	command(callcmd);
 	debugOutput("Waiting answer ...");
 	bool ok = false;
-	while(isHangUp())
-	{
+	while(isHangUp()) {
 		delay(100);
 		if (ok)
 			continue;
 
 		readPort();
-		if (buffer.indexOf("OK"))
-		{
+		if (buffer.indexOf("OK")) {
 			buffer = String();
 			debugOutput("Connection established ...");
 			ok = true;
 			continue;
 		}
-		else if (buffer.indexOf("NO DIALTONE"))
-		{
+		else if (buffer.indexOf("NO DIALTONE")) {
 			debugOutput("Call error: No signal");
 			continue;
 		}
-		else if (buffer.indexOf("BUSY"))
-		{
+		else if (buffer.indexOf("BUSY")) {
 			debugOutput("Call error: Busy");
 			continue;
 		}
-		else if (buffer.indexOf("NO CARRIER"))
-		{
+		else if (buffer.indexOf("NO CARRIER")) {
 			debugOutput("Call error: Hang up");
 			continue;
 		}
-		else if (buffer.indexOf("NO ANSWER"))
-		{
+		else if (buffer.indexOf("NO ANSWER")) {
 			debugOutput("Call error: No answer");
 			continue;
 		}
@@ -448,8 +433,7 @@ String getCaller()
 	const unsigned int timeout = 1250;
 	command("AT+CLCC");
 	const unsigned int millisEnd = millis() + timeout;
-	while(millis() < millisEnd)
-	{
+	while(millis() < millisEnd) {
 		readPort();
 		const int index = buffer.indexOf("OK");
 		if(index == -1)
