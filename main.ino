@@ -234,8 +234,7 @@ void process()
 		if (buffer.indexOf("RING") != -1) {
 			buffer = String();
 		}
-		if (isHangUp())
-		{
+		if (isHangUp()) {
 			bellOff();
 			debugOutput("Pick up phone");
 			command("ATA");
@@ -254,8 +253,7 @@ void process()
 			changeState(READY);
 			break;
 		}
-		if (buffer.indexOf("NO CARRIER") != -1)
-		{
+		if (buffer.indexOf("NO CARRIER") != -1) {
 			debugOutput("Call ended by other side");
 			changeState(READY);
 			break;
