@@ -22,7 +22,7 @@ enum STATES
 };
 
 //defines
-#define DEBUG_BUILD
+//#define DEBUG_BUILD
 
 //const
 const uint8_t pinBellForward  = 10;  // Bell left
@@ -99,7 +99,7 @@ void setup()
 
 	bell(false);
 
-	resetSimModule();
+	resetSIM900Module();
 	delay(DEFAULT_DELAY);
 	debugOutput("Setup finished");
 }
@@ -283,7 +283,7 @@ void reconnect()
 {
 	debugOutput("SIM module offline");
 	buffer = String();
-	resetSimModule();
+	resetSIM900Module();
 	delay(DEFAULT_DELAY);
 	debugOutput("Reconnect finished");
 }
