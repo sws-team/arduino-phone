@@ -369,6 +369,7 @@ void checkNumber()
 				tone(pinBEEP, 1500, 1000);
 				debugOutput(String("Call to: ") + strNumber);
 				call(strNumber);
+				digitsCount = 0;
 			}
 		}
 	}
@@ -377,38 +378,32 @@ void checkNumber()
 
 void call(const String& number)
 {
-	const String callcmd = "ATD" + number+";";
+	const String callcmd = "ATD+" + number+";";
 	command(callcmd);
 	debugOutput("Waiting answer ...");
-	bool ok = false;
 	while(isHangUp()) {
-		delay(100);
-		if (ok)
-			continue;
-
 		readPort();
-		if (buffer.indexOf("OK")) {
+		if (buffer.indexOf("OK") != -1) {
 			buffer = String();
 			debugOutput("Connection established ...");
-			ok = true;
-			continue;
 		}
-		else if (buffer.indexOf("NO DIALTONE")) {
+		else if (buffer.indexOf("NO DIALTONE") != -1) {
 			debugOutput("Call error: No signal");
-			continue;
+			return;
 		}
-		else if (buffer.indexOf("BUSY")) {
+		else if (buffer.indexOf("BUSY") != -1) {
 			debugOutput("Call error: Busy");
-			continue;
+			return;
 		}
-		else if (buffer.indexOf("NO CARRIER")) {
+		else if (buffer.indexOf("NO CARRIER") != -1) {
 			debugOutput("Call error: Hang up");
-			continue;
+			return;
 		}
-		else if (buffer.indexOf("NO ANSWER")) {
+		else if (buffer.indexOf("NO ANSWER") != -1) {
 			debugOutput("Call error: No answer");
-			continue;
+			return;
 		}
+		delay(LOOP_DELAY);
 	}
 	command(CMD_END_CALL);
 	debugOutput("Call ended");
