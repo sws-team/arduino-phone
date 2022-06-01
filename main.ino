@@ -2,8 +2,16 @@
 // Phone
 // ============================================================================
 
+//defines
+//#define DEBUG_BUILD
+#define SCREEN_ENABLED
+
+
 //includes
 #include <SoftwareSerial.h>
+#ifdef SCREEN_ENABLED
+#include <U8glib.h>
+#endif
 
 //enums
 enum STATES
@@ -20,9 +28,6 @@ enum STATES
 	RING,
 	TALKING,
 };
-
-//defines
-//#define DEBUG_BUILD
 
 //const
 const uint8_t pinBellForward  = 10;  // Bell left
@@ -42,6 +47,10 @@ const uint16_t PORT_SPEED = 9600;	// Baud rate
 const String endline = "\n";	// End of line
 const uint16_t MAX_TRY_COUNT = 3;
 const uint8_t RING_COUNT = 5;
+#ifdef SCREEN_ENABLED
+String displayText;
+U8GLIB_SSD1306_128X32 u8g(U8G_I2C_OPT_NONE);  // I2C / TWI
+#endif
 
 // variables
 STATES state = INIT;
@@ -75,6 +84,10 @@ void reconnect();
 void bellLeft();
 void bellRight();
 void bellOff();
+#ifdef SCREEN_ENABLED
+void display();
+void setDisplayString(const String& text);
+#endif
 
 //======================SETUP===========================
 void setup()
@@ -98,6 +111,9 @@ void setup()
 	digitalWrite(pinBEEP, LOW);
 
 	bell(false);
+#ifdef SCREEN_ENABLED
+	u8g.setFont(u8g_font_unifontr);
+#endif
 
 	resetSIM900Module();
 	delay(DEFAULT_DELAY);
@@ -109,6 +125,9 @@ void loop()
 {
 	process();
 	readPort();
+#ifdef SCREEN_ENABLED
+	display();
+#endif
 	delay(LOOP_DELAY);
 }
 //======================================================
@@ -122,10 +141,16 @@ void process()
 		debugOutput("SIM module ready");
 		changeState(WAIT_READY);
 		command(CMD_AT);
+#ifdef SCREEN_ENABLED
+		setDisplayString("Start");
+#endif
 	}
 		break;
 	case WAIT_READY:
 	{
+#ifdef SCREEN_ENABLED
+		setDisplayString("Wait ready");
+#endif
 		if (buffer.indexOf("OK") > 0) {
 			debugOutput("AT OK");
 			command(CMD_CONNECTION);
@@ -144,6 +169,9 @@ void process()
 		break;
 	case GET_CONNECTION:
 	{
+#ifdef SCREEN_ENABLED
+		setDisplayString("Connection");
+#endif
 		if (buffer.indexOf("OK") == -1)
 			break;
 		const int index = buffer.indexOf("+CSQ:");
@@ -165,6 +193,9 @@ void process()
 		break;
 	case GET_NETWORK:
 	{
+#ifdef SCREEN_ENABLED
+		setDisplayString("Finding network");
+#endif
 		if (buffer.indexOf("OK") == -1)
 			break;
 		const int index = buffer.indexOf("+CREG:");
@@ -186,6 +217,9 @@ void process()
 		break;
 	case GET_OPERATOR:
 	{
+#ifdef SCREEN_ENABLED
+		setDisplayString("Operator");
+#endif
 		if (buffer.indexOf("OK") == -1)
 			break;
 		const int index = buffer.indexOf("+COPS:");
@@ -196,6 +230,9 @@ void process()
 
 		const String operatorName = buffer.substring(index + COPS_LENGTH, endIndex);
 		debugOutput(String("Operator: ") + operatorName);
+#ifdef SCREEN_ENABLED
+		setDisplayString(operatorName);
+#endif
 		if (operatorName != "0") {
 			initSettings();
 			changeState(READY);
@@ -208,12 +245,16 @@ void process()
 		break;
 	case READY:
 	{
+#ifdef SCREEN_ENABLED
+		setDisplayString("Ready");
+#endif
 		if (buffer.indexOf("RING") != -1) {
 			debugOutput("Ring");
 			digitalWrite(pinBEEP, LOW);
-#if 0
+#ifdef SCREEN_ENABLED
 			const String caller = getCaller();
 			debugOutput(String("Caller: ") + caller);
+			setDisplayString(caller);
 #endif
 			buffer = String();
 
@@ -247,6 +288,9 @@ void process()
 		break;
 	case TALKING:
 	{
+#ifdef SCREEN_ENABLED
+		setDisplayString("Talking");
+#endif
 		if (!isHangUp()) {
 			command(CMD_END_CALL);
 			debugOutput("Call ended");
@@ -365,6 +409,10 @@ void checkNumber()
 				strNumber[digitsCount] = '\0';
 			}
 			debugOutput(String("Phone number: ") + strNumber);
+#ifdef SCREEN_ENABLED
+			setDisplayString(strNumber);
+			display();
+#endif
 			if (digitsCount == PHONE_NUMBER_LENGTH) {
 				tone(pinBEEP, 1500, 1000);
 				debugOutput(String("Call to: ") + strNumber);
@@ -381,6 +429,9 @@ void call(const String& number)
 	const String callcmd = "ATD+" + number+";";
 	command(callcmd);
 	debugOutput("Waiting answer ...");
+#ifdef SCREEN_ENABLED
+	setDisplayString("Calling...");
+#endif
 	while(isHangUp()) {
 		readPort();
 		if (buffer.indexOf("OK") != -1) {
@@ -440,6 +491,8 @@ String getCaller()
 		const int eindex = caller.indexOf('\"');
 		caller.remove(eindex, caller.length() - eindex);
 
+		debugOutput(String(caller.length()));
+
 		if (caller.length() == PHONE_NUMBER_LENGTH + 1)
 			return caller;
 	}
@@ -478,6 +531,26 @@ void bellOff()
 {
 	digitalWrite(pinBellForward, LOW);
 	digitalWrite(pinBellBack, LOW);
+}
+
+void display()
+{
+#ifdef SCREEN_ENABLED
+	u8g.firstPage();
+	do {
+		u8g.setColorIndex(1);//white
+		u8g.setPrintPos(0, 10);
+		u8g.print(displayText);
+	}
+	while(u8g.nextPage());
+#endif
+}
+
+void setDisplayString(const String& text)
+{
+#ifdef SCREEN_ENABLED
+	displayText = text;
+#endif
 }
 
 void debugOutput(const String& text)
