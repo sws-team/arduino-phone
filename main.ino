@@ -4,8 +4,9 @@
 
 //defines
 //#define DEBUG_BUILD
-#define SCREEN_ENABLED
-
+//#define SCREEN_ENABLED
+#define BELL_SOLENOID
+#define SIM_MODULE
 
 //includes
 #include <SoftwareSerial.h>
@@ -30,21 +31,25 @@ enum STATES
 };
 
 //const
-const uint8_t pinBellForward  = 10;  // Bell left
-const uint8_t pinBellBack  = 12;  // Bell right
-const uint8_t pinBEEP	= 3;	// Beep
-const uint8_t pinHANG	= 4;	// Hang
-const uint8_t pinDIAL	= 5;	// Dial
-const uint8_t pinPULSE	= 6;	// Pulse
-const uint8_t pinRX		= 7;	// RX of SIM800L
-const uint8_t pinTX		= 8;	// TX of SIM800L
-const uint8_t pinRST	= 9;	// Pin to reset SIM800L
-const uint16_t DEFAULT_DELAY = 1000;	// Wait time
-const uint16_t LOOP_DELAY = 100;	// Loop delay
-const uint16_t BELL_FREQ = 75;	// Bell frequency
+const uint8_t pinBEEP	= 3;				// Beep
+const uint8_t pinHANG	= 4;				// Hang
+const uint8_t pinDIAL	= 5;				// Dial
+const uint8_t pinPULSE	= 6;				// Pulse
+const uint8_t pinRX		= 7;				// RX of SIM module
+const uint8_t pinTX		= 8;				// TX of SIM module
+const uint8_t pinRST	= 9;				// Pin to reset SIM module
+const uint8_t pinBellForward  = 10;			// Bell left
+#ifdef BELL_SOLENOID
+const uint8_t BELL_DELAY = 450;				// Bell delay
+#else
+const uint8_t pinBellBack  = 12;	// Bell right
+#endif
+const uint16_t DEFAULT_DELAY = 1000;		// Wait time
+const uint16_t LOOP_DELAY = 100;			// Loop delay
+const uint16_t BELL_FREQ = 75;				// Bell frequency
 const uint16_t PHONE_NUMBER_LENGTH = 11;	// Phone number length +7(XXX)XXX-XX-XX
-const uint16_t PORT_SPEED = 9600;	// Baud rate
-const String endline = "\n";	// End of line
+const uint16_t PORT_SPEED = 9600;			// Baud rate
+const String endline = "\n";				// End of line
 const uint16_t MAX_TRY_COUNT = 3;
 const uint8_t RING_COUNT = 5;
 #ifdef SCREEN_ENABLED
@@ -69,7 +74,7 @@ const String CMD_END_CALL = "ATH";
 void process();
 void answer();
 void bell(bool active);
-void resetSIM900Module();// Power on SIM900 module of GSM/GPRS Shield
+void reset();// Reset SIM module
 void readPort();
 void command(const String& str);
 void changeState(const STATES newState);
@@ -81,8 +86,6 @@ void checkNumber();
 bool isHangUp(); // Check is hang up
 void debugOutput(const String& text);
 void reconnect();
-void bellLeft();
-void bellRight();
 void bellOff();
 #ifdef SCREEN_ENABLED
 void display();
@@ -104,7 +107,9 @@ void setup()
 
 	pinMode(pinRST, OUTPUT);
 	pinMode(pinBellForward, OUTPUT);
+#ifndef BELL_SOLENOID
 	pinMode(pinBellBack, OUTPUT);
+#endif
 	pinMode(pinBEEP, OUTPUT);
 
 	bellOff();
@@ -115,7 +120,7 @@ void setup()
 	u8g.setFont(u8g_font_unifontr);
 #endif
 
-	resetSIM900Module();
+	reset();
 	delay(DEFAULT_DELAY);
 	debugOutput("Setup finished");
 }
@@ -309,17 +314,22 @@ void process()
 	}
 }
 
-void resetSIM900Module()
+void reset()
 {
 	changeState(INIT);
 
+#ifdef SIM_MODULE
+	digitalWrite(pinRST, LOW);
+	digitalWrite(pinRST, HIGH);
+	delay(DEFAULT_DELAY);
+#else
 	digitalWrite(pinRST, LOW);
 	delay(DEFAULT_DELAY);
 	digitalWrite(pinRST, HIGH);
 	delay(DEFAULT_DELAY * 2);
 	digitalWrite(pinRST, LOW);
 	delay(DEFAULT_DELAY * 3);
-
+#endif
 	debugOutput("Reset SIM module");
 }
 
@@ -327,7 +337,7 @@ void reconnect()
 {
 	debugOutput("SIM module offline");
 	buffer = String();
-	resetSIM900Module();
+	reset();
 	delay(DEFAULT_DELAY);
 	debugOutput("Reconnect finished");
 }
@@ -356,13 +366,28 @@ void readPort()
 void bell(bool active)
 {
 	if(active) {
-		bellLeft();
+#ifdef BELL_SOLENOID
+		digitalWrite(pinBellForward, HIGH);
 		delay(BELL_FREQ);
-		bellRight();
+#else
+		//bell left
+		digitalWrite(pinBellForward, HIGH);
+		digitalWrite(pinBellBack, LOW);
 		delay(BELL_FREQ);
+
+		//bell right
+		digitalWrite(pinBellForward, LOW);
+		digitalWrite(pinBellBack, HIGH);
+		delay(BELL_FREQ);
+#endif
 	}
 	else {
+#ifdef BELL_SOLENOID
+		digitalWrite(pinBellForward, LOW);
+		delay(BELL_FREQ);
+#else
 		bellOff();
+#endif
 	}
 }
 
@@ -466,6 +491,9 @@ void ring()
 		bell(true);
 		bell(false);
 	}
+#ifdef BELL_SOLENOID
+	delay(BELL_DELAY);
+#endif
 }
 
 String getCaller()
@@ -515,22 +543,12 @@ bool isHangUp()
 	return digitalRead(pinHANG);
 }
 
-void bellLeft()
-{
-	digitalWrite(pinBellForward, HIGH);
-	digitalWrite(pinBellBack, LOW);
-}
-
-void bellRight()
-{
-	digitalWrite(pinBellForward, LOW);
-	digitalWrite(pinBellBack, HIGH);
-}
-
 void bellOff()
 {
 	digitalWrite(pinBellForward, LOW);
+#ifndef BELL_SOLENOID
 	digitalWrite(pinBellBack, LOW);
+#endif
 }
 
 void display()

@@ -1,53 +1,56 @@
 const uint8_t pinBellForward  = 10;  // Bell left
-const uint8_t pinBellBack  = 11;  // Bell right
+const uint8_t pinBellBack  = 12;  // Bell right
 const uint16_t BELL_FREQ = 75;  // Bell frequency
-const uint16_t RING_DELAY = 500;
+const uint16_t LOOP_DELAY = 100;	// Loop delay
+const uint8_t RING_COUNT = 5;
 
 void bellLeft()
 {
-    digitalWrite(pinBellForward, HIGH);
-    digitalWrite(pinBellBack, LOW);
+	digitalWrite(pinBellForward, HIGH);
+	digitalWrite(pinBellBack, LOW);
 }
 
 void bellRight()
 {
-    digitalWrite(pinBellForward, LOW);
-    digitalWrite(pinBellBack, HIGH);
+	digitalWrite(pinBellForward, LOW);
+	digitalWrite(pinBellBack, HIGH);
 }
 
+void bellOff()
+{
+	digitalWrite(pinBellForward, LOW);
+	digitalWrite(pinBellBack, LOW);
+}
 
 void bell(bool active)
 {
-	if(active)
-	{
-	        bellLeft();
+	if(active) {
+		bellLeft();
 		delay(BELL_FREQ);
 		bellRight();
 		delay(BELL_FREQ);
 	}
-	else
-	{
-	    digitalWrite(pinBellForward, LOW);
-	    digitalWrite(pinBellBack, LOW);
+	else {
+	        bellOff();
 	}
 }
 
 void ring()
 {
-        const unsigned int millisEnd = millis() + RING_DELAY;
-	while(millis() < millisEnd) {
-	        bell(true);
+	for (uint8_t i = 0; i < RING_COUNT; ++i) {
+		bell(true);
 		bell(false);
 	}
 }
 
 void setup()
 {
-        pinMode(pinBellForward, OUTPUT);
+	pinMode(pinBellForward, OUTPUT);
 	pinMode(pinBellBack, OUTPUT);
 }
 
 void loop()
 {
-    ring();
+	ring();
+	delay(LOOP_DELAY);
 }
