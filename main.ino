@@ -266,7 +266,6 @@ void process()
 			changeState(RING);
 			break;
 		}
-		checkNumber();
 	}
 		break;
 	case RING:
