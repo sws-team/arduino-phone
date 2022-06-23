@@ -3,10 +3,11 @@
 // ============================================================================
 
 //defines
-//#define DEBUG_BUILD
+#define DEBUG_BUILD
 //#define SCREEN_ENABLED
-#define BELL_SOLENOID
-#define SIM_MODULE
+//#define BELL_SOLENOID
+//#define SIM_MODULE
+//#define READ_SMS
 
 //includes
 #include <SoftwareSerial.h>
@@ -28,6 +29,9 @@ enum STATES
 
 	RING,
 	TALKING,
+#ifdef READ_SMS
+	SMS
+#endif
 };
 
 //const
@@ -55,6 +59,14 @@ const uint8_t RING_COUNT = 5;
 #ifdef SCREEN_ENABLED
 String displayText;
 U8GLIB_SSD1306_128X32 u8g(U8G_I2C_OPT_NONE);  // I2C / TWI
+#endif
+#ifdef READ_SMS
+const String SMS_CMD = "+CMT:";
+String textSMS;
+const uint8_t SMS_MAX_TEXT = 16;
+unsigned int smsTime = 0;
+unsigned short currentSymbol = 0;
+const uint16_t SMS_TEXT_INTERVAL = 1000;
 #endif
 
 // variables
@@ -91,6 +103,10 @@ void bellOff();
 void display();
 void setDisplayString(const String& text);
 #endif
+#ifdef READ_SMS
+bool checkSMS();
+#endif
+bool checkCall();
 
 //======================SETUP===========================
 void setup()
@@ -130,6 +146,7 @@ void loop()
 {
 	process();
 	readPort();
+	//NORMAL POWER DOWN
 #ifdef SCREEN_ENABLED
 	display();
 #endif
@@ -253,19 +270,19 @@ void process()
 #ifdef SCREEN_ENABLED
 		setDisplayString("Ready");
 #endif
-		if (buffer.indexOf("RING") != -1) {
-			debugOutput("Ring");
-			digitalWrite(pinBEEP, LOW);
-#ifdef SCREEN_ENABLED
-			const String caller = getCaller();
-			debugOutput(String("Caller: ") + caller);
-			setDisplayString(caller);
-#endif
-			buffer = String();
-
+		if (checkCall()) {
 			changeState(RING);
 			break;
 		}
+		if (buffer.length() != 0)
+			debugOutput(buffer);
+#ifdef READ_SMS
+		if (checkSMS()) {
+			changeState(SMS);
+			break;
+		}
+#endif
+		checkNumber();
 	}
 		break;
 	case RING:
@@ -308,6 +325,42 @@ void process()
 		}
 	}
 		break;
+#ifdef READ_SMS
+	case SMS:
+	{
+		if (checkCall()) {
+			debugOutput("SMS -> Call");
+			changeState(RING);
+			break;
+		}
+		if (checkSMS())
+			break;
+		if (isHangUp()) {
+			debugOutput("Hide SMS");
+			textSMS = String();
+			changeState(READY);
+		}
+		if (textSMS.length() <= SMS_MAX_TEXT) {
+#ifdef SCREEN_ENABLED
+			setDisplayString(textSMS);
+#endif
+		}
+		else {
+			const unsigned int currentTime = millis();
+			if (currentTime - smsTime >= SMS_TEXT_INTERVAL * currentSymbol) {
+				currentSymbol++;
+				if (currentSymbol == textSMS.length() - SMS_MAX_TEXT) {
+					smsTime = millis();
+					currentSymbol = 0;
+				}
+#ifdef SCREEN_ENABLED
+				setDisplayString(textSMS.substring(currentSymbol, currentSymbol + SMS_MAX_TEXT));
+#endif
+			}
+		}
+	}
+		break;
+#endif
 	default:
 		break;
 	}
@@ -534,6 +587,17 @@ void initSettings()
 	command("AT+SNFS=1");
 	command("AT+CLVL=8");
 	command("AT+CRSL=15");
+	delay(DEFAULT_DELAY);
+	readPort();
+#ifdef READ_SMS
+	command("AT+CMGF=1");
+	delay(DEFAULT_DELAY);
+	readPort();
+	command("AT+CNMI=2,2");
+	delay(DEFAULT_DELAY);
+	readPort();
+#endif
+	buffer = String();
 	tone(pinBEEP, 1000, 2000);
 }
 
@@ -575,4 +639,41 @@ void debugOutput(const String& text)
 #ifdef DEBUG_BUILD
 	Serial.println(text);
 #endif
+}
+
+#ifdef READ_SMS
+bool checkSMS()
+{
+	//+CMT: "+70123456789","nick","yy/mm/dd,hh:mm:ss+12"\r\n
+	//Text
+	if (buffer.indexOf(SMS_CMD) != -1) {
+		textSMS = buffer;
+		buffer = String();
+
+		const int index = textSMS.indexOf('\n') + 1;
+		textSMS.remove(0, index);
+		smsTime = millis();
+
+		debugOutput("Received SMS: " + textSMS);
+
+		return true;
+	}
+	return false;
+}
+#endif
+
+bool checkCall()
+{
+	if (buffer.indexOf("RING") != -1) {
+		debugOutput("Ring");
+		digitalWrite(pinBEEP, LOW);
+#ifdef SCREEN_ENABLED
+		const String caller = getCaller();
+		debugOutput(String("Caller: ") + caller);
+		setDisplayString(caller);
+#endif
+		buffer = String();
+		return true;
+	}
+	return false;
 }
