@@ -5,7 +5,7 @@ const unsigned int pinTX	= 8;	// TX of SIM800L
 const uint16_t PORT_SPEED = 9600;	// Baud rate
 SoftwareSerial mySerial(pinRX, pinTX);
 
-//AT+CREG? AT+COPS? AT+CSQ
+//	AT+CREG? AT+COPS? AT+CSQ
 
 void setup()
 {
