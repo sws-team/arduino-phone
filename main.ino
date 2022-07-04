@@ -4,10 +4,10 @@
 
 //defines
 //#define DEBUG_BUILD
-#define SCREEN_ENABLED
-//#define BELL_SOLENOID
-//#define SIM_MODULE
-#define READ_SMS
+//#define SCREEN_ENABLED
+#define BELL_SOLENOID
+#define SIM_MODULE
+//#define READ_SMS
 //#define ECHO
 
 //includes
@@ -271,7 +271,9 @@ void process()
 		}
 #endif
 		if (checkCall()) {
+#ifdef READ_SMS
 			textSMS = String();
+#endif
 			changeState(RING);
 			break;
 		}
@@ -488,8 +490,9 @@ void checkNumber()
 	//check is phone is picked up
 	if(!isHangUp())
 		return;
-
+#ifdef READ_SMS
 	textSMS = String();
+#endif
 
 	unsigned int digitsCount = 0;
 	char strNumber[12];
