@@ -19,6 +19,8 @@ void setup()
 
 	// set the data rate for the SoftwareSerial port
 	mySerial.begin(PORT_SPEED);
+
+	mySerial.println("AT");
 }
 
 void loop() // run over and over
